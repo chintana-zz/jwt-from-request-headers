@@ -16,6 +16,14 @@ Create a mediation extension and configure mediator as below,
 </class>
 ```
 
+Add a mediation extension using API Manager Tooling.
+
+<img src="img/add-class-using-apim-tooling.png" />
+
+Then engage this mediation extension for an API
+
+<img src="img/enable-mediation-extension-for-api.png" />
+
 Incoming request to API should have those custom headers.
 
 ```
@@ -33,6 +41,10 @@ API Manager will generate following HTTP header and attach it to outgoing reques
 ```
 CustomJWT: eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJEb21haW4iOiJleGFtcGxlLmNvbSIsImV4cCI6MTUxMDQ0NTUxMywiVXNlcm5hbWUiOiJqb2huZG9lIiwiTXlIZWFkZXIiOiJUZXN0VmFsdWUxMjMifQ==.JMFaVK7IfshRoiLD8mrCQ1lmKXV8DXSxRCjFrOH1c7Uq6pdSPM3T4IoP4dccUl9gXjGc1S7T7VNJLO/0gek2F4kB7eQRHnt6CQwF8JaBpzKNFB/wKrOZT7ZzN1pLXwe94N8XCyKAAP/uYc808BP+H1rnkaFvg4AjodPFJsLE81g=
 ```
+
+Decoded JWT
+
+<img src="img/decoded-jwt.png" />
 
 ### Building from source
 
