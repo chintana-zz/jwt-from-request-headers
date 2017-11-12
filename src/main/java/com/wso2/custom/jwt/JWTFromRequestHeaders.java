@@ -73,7 +73,8 @@ public class JWTFromRequestHeaders extends AbstractMediator {
         HashMap<String, String> requestHeaders = new HashMap<String, String>();
 
         if (includeTheseHeaders.equals("")) {
-            log.error("No headers specified for building custom JWT. Header will not be included in outgoing response");
+            log.error("No headers specified for building custom JWT. " +
+                    "Header will not be included when forwarding request to backend service");
 
             // Continue mediation flow
             return true;
@@ -112,6 +113,13 @@ public class JWTFromRequestHeaders extends AbstractMediator {
         int exp = (expirationTimeInSeconds != 0) ? expirationTimeInSeconds : 3600;
         claimsSet.setClaim("exp", new Date(System.currentTimeMillis()+ (exp*1000)));
 
+        if (log.isTraceOrDebugEnabled()) {
+            log.traceOrDebug("Claims included in JWT");
+            for (Map.Entry<String, String> header : requestHeaders.entrySet()) {
+                log.traceOrDebug(header.getKey() + ": " + header.getValue());
+            }
+        }
+
         String jwtBody = claimsSet.toJSONObject().toJSONString();
         String base64UrlEncodedBody = null;
         try {
@@ -137,6 +145,9 @@ public class JWTFromRequestHeaders extends AbstractMediator {
             return false;
         }
 
+        if (log.isTraceOrDebugEnabled()) {
+            log.traceOrDebug("Trying to get keystore for tenant: " + tenantId);
+        }
         KeyStoreManager ksm = KeyStoreManager.getInstance(tenantId);
 
         if (!org.wso2.carbon.base.MultitenantConstants.SUPER_TENANT_DOMAIN_NAME.equals(tenantDomain)) {
@@ -165,7 +176,10 @@ public class JWTFromRequestHeaders extends AbstractMediator {
             String base64UrlEncodedAssertion = Base64Utils.encode(signedAssertion);
 
             String customJWT =  base64UrlEncodedHeader + '.' + base64UrlEncodedBody + '.' + base64UrlEncodedAssertion;
-
+            if (log.isTraceOrDebugEnabled()) {
+                log.traceOrDebug("JWT: " + customJWT);
+                log.traceOrDebug("Attaching JWT to transport header: " + outgoingHeaderName);
+            }
             ((Map<String, Object>) ((Axis2MessageContext) messageContext).getAxis2MessageContext()
                     .getProperty("TRANSPORT_HEADERS")).put(outgoingHeaderName, customJWT);
 
