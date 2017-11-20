@@ -2,6 +2,7 @@ package com.wso2.custom.jwt;
 
 import com.nimbusds.jwt.JWTClaimsSet;
 import org.apache.axiom.util.base64.Base64Utils;
+import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.synapse.MessageContext;
 import org.apache.synapse.SynapseLog;
@@ -80,6 +81,31 @@ public class JWTFromRequestHeaders extends AbstractMediator {
             return true;
         }
 
+        PrivilegedCarbonContext cc = PrivilegedCarbonContext.getThreadLocalCarbonContext();
+        int tenantId = cc.getTenantId();
+        String tenantDomain = cc.getTenantDomain();
+
+        Key privateKey = null;
+
+        if (log.isTraceOrDebugEnabled()) {
+            log.traceOrDebug("Trying to get keystore for tenant: " + tenantId);
+        }
+        KeyStoreManager ksm = KeyStoreManager.getInstance(tenantId);
+
+        if (!org.wso2.carbon.base.MultitenantConstants.SUPER_TENANT_DOMAIN_NAME.equals(tenantDomain)) {
+            String ksName = tenantDomain.trim().replace('.', '-');
+            String jksName = ksName + ".jks";
+            privateKey = ksm.getPrivateKey(jksName, tenantDomain);
+        } else {
+            try {
+                privateKey = ksm.getDefaultPrivateKey();
+            } catch (Exception e) {
+                log.error(ExceptionUtils.getStackTrace(e));
+                // cannot continue, need private key for signing
+                return false;
+            }
+        }
+
         Map<String, Object> trpHeaders = (Map<String, Object>)
                 ((Axis2MessageContext) messageContext).getAxis2MessageContext().getProperty("TRANSPORT_HEADERS");
         for (String header : includeTheseHeaders.split(",")) {
@@ -88,12 +114,25 @@ public class JWTFromRequestHeaders extends AbstractMediator {
             }
         }
 
+        String thumbPrint = "";
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-1");
+            // digest.update(ksm.getDefaultPrimaryCertificate().getPublicKey().getEncoded());
+            digest.update(ksm.getDefaultPrimaryCertificate().getEncoded());
+            Base64 base64 = new Base64();
+            thumbPrint = base64.encodeToString(digest.digest()).trim();
+        } catch (Exception e) {
+            log.error(ExceptionUtils.getStackTrace(e));
+        }
+
         String jwtHeader = null;
         StringBuilder jwtHeaderBuilder = new StringBuilder();
         jwtHeaderBuilder.append("{\"typ\":\"JWT\",");
         jwtHeaderBuilder.append("\"alg\":\"");
         jwtHeaderBuilder.append("RS256");
-        jwtHeaderBuilder.append('\"');
+        jwtHeaderBuilder.append("\",");
+        jwtHeaderBuilder.append("\"x5t\":");
+        jwtHeaderBuilder.append('"' + thumbPrint + '"');
         jwtHeaderBuilder.append('}');
 
         jwtHeader = jwtHeaderBuilder.toString();
@@ -130,12 +169,6 @@ public class JWTFromRequestHeaders extends AbstractMediator {
 
         String assertion = base64UrlEncodedHeader + '.' + base64UrlEncodedBody;
 
-        PrivilegedCarbonContext cc = PrivilegedCarbonContext.getThreadLocalCarbonContext();
-        int tenantId = cc.getTenantId();
-        String tenantDomain = cc.getTenantDomain();
-
-        Key privateKey = null;
-
         try {
             APIUtil.loadTenantRegistry(tenantId);
         } catch (RegistryException e) {
@@ -143,23 +176,6 @@ public class JWTFromRequestHeaders extends AbstractMediator {
 
             // Cannot continue without being able to load registry
             return false;
-        }
-
-        if (log.isTraceOrDebugEnabled()) {
-            log.traceOrDebug("Trying to get keystore for tenant: " + tenantId);
-        }
-        KeyStoreManager ksm = KeyStoreManager.getInstance(tenantId);
-
-        if (!org.wso2.carbon.base.MultitenantConstants.SUPER_TENANT_DOMAIN_NAME.equals(tenantDomain)) {
-            String ksName = tenantDomain.trim().replace('.', '-');
-            String jksName = ksName + ".jks";
-            privateKey = ksm.getPrivateKey(jksName, tenantDomain);
-        } else {
-            try {
-                privateKey = ksm.getDefaultPrivateKey();
-            } catch (Exception e) {
-                log.error(ExceptionUtils.getStackTrace(e));
-            }
         }
 
         Signature signature = null;
